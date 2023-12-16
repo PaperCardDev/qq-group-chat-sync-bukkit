@@ -8,6 +8,7 @@ import com.github.Anon8281.universalScheduler.scheduling.schedulers.TaskSchedule
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.ServicePriority;
@@ -47,7 +48,9 @@ public final class ThePlugin extends JavaPlugin implements Listener {
 
         if (!content.startsWith(this.getSyncPrefix())) return;
 
-        if (!(event.getPlayer().displayName() instanceof TextComponent displayName)) return;
+        final Player player = event.getPlayer();
+
+        if (!(player.displayName() instanceof TextComponent displayName)) return;
 
         String name = displayName.content();
         if (name.isEmpty()) {
@@ -63,7 +66,7 @@ public final class ThePlugin extends JavaPlugin implements Listener {
         if (name.isEmpty()) name = event.getPlayer().getName();
 
         try {
-            sender.sendNormal("<%s> %s".formatted(name, content));
+            sender.sendNormal(player.getUniqueId(), player.getName(), "<%s> %s".formatted(name, content));
         } catch (Exception e) {
             handleException("sendNormalMessage", e);
         }
