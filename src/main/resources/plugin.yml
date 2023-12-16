@@ -1,0 +1,6 @@
+name: qq-group-chat-sync-bukkit
+version: '${project.version}'
+main: cn.paper_card.qq_group_chat_sync.ThePlugin
+api-version: '1.20'
+folia-supported: true
+author: Paper99
