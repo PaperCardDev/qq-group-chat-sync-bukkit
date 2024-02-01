@@ -14,6 +14,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.UUID;
+
 class QqGroupChatSyncApiImpl implements QqGroupChatSyncApi {
 
     private QqGroupMessageSender sender = null;
@@ -81,7 +83,7 @@ class QqGroupChatSyncApiImpl implements QqGroupChatSyncApi {
         builder.append(Component.text(content));
 
         // 广播
-        plugin.getTaskScheduler().runTask(() -> plugin.getServer().broadcast(builder.build()));
+        plugin.getTaskScheduler().runTask(() -> plugin.broadcast(builder.build()));
 
         return null;
     }
@@ -127,7 +129,7 @@ class QqGroupChatSyncApiImpl implements QqGroupChatSyncApi {
         plugin.getTaskScheduler().runTask(() -> {
             for (final Player player : plugin.getServer().getOnlinePlayers()) {
                 player.sendTitlePart(TitlePart.TITLE, Component.text()
-                        .append(Component.text("@全体成员").color(NamedTextColor.GOLD))
+                        .append(Component.text("@全体成员").color(NamedTextColor.DARK_RED))
                         .build());
             }
         });
@@ -136,9 +138,21 @@ class QqGroupChatSyncApiImpl implements QqGroupChatSyncApi {
     }
 
     @Override
-    public @Nullable String onReplySyncMessage(long qq, @NotNull String name, long target, @NotNull String content) {
+    public @Nullable String onReplySyncMessage(long qq, @NotNull String name, @NotNull UUID uuid, @NotNull String content) {
+        final Player player = plugin.getServer().getPlayer(uuid);
+
+        if (player != null && player.isOnline()) {
+            plugin.getTaskScheduler().runTask(() -> {
+                player.sendTitlePart(TitlePart.TITLE, Component.text("有回复你的消息").color(NamedTextColor.GOLD));
+                player.sendTitlePart(TitlePart.SUBTITLE, Component.text()
+                        .append(Component.text(name).color(NamedTextColor.DARK_AQUA))
+                        .append(Component.text(" 在群里回复了你的群同步消息").color(NamedTextColor.GREEN))
+                        .build());
+            });
+        }
         return null;
     }
+
 
     @Override
     public void setMessageSender(@Nullable QqGroupMessageSender qqGroupMessageSender) {
