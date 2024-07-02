@@ -92,7 +92,7 @@ class MainCommand extends TheMcCommand.HasSub {
                 return true;
             }
 
-            final PlayerSetting setting = plugin.getPlayerSettingService().getPlayerSetting(player);
+            final MyPlayer setting = plugin.getMyPlayerService().getMyPlayer(player);
             setting.setReceiveGroupMsg(!setting.isReceiveGroupMsg());
 
             final TextComponent.Builder text = Component.text();

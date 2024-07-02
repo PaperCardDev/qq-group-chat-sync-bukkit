@@ -1,6 +1,6 @@
 package cn.paper_card.qq_group_chat_sync;
 
-class PlayerSetting {
+class MyPlayer {
     private boolean receiveGroupMsg = true;
 
     boolean isReceiveGroupMsg() {

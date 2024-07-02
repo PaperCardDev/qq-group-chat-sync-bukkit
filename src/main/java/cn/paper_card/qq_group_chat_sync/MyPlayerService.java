@@ -9,33 +9,33 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashMap;
 import java.util.UUID;
 
-class PlayerSettingService implements Listener {
+class MyPlayerService implements Listener {
 
-    private final @NotNull HashMap<UUID, PlayerSetting> settings;
+    private final @NotNull HashMap<UUID, MyPlayer> cache;
 
-    PlayerSettingService() {
-        this.settings = new HashMap<>();
+    MyPlayerService() {
+        this.cache = new HashMap<>();
     }
 
     void register(@NotNull ThePlugin plugin) {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    @NotNull PlayerSetting getPlayerSetting(@NotNull Player player) {
+    @NotNull MyPlayer getMyPlayer(@NotNull Player player) {
         final UUID id = player.getUniqueId();
-        synchronized (this.settings) {
-            PlayerSetting s = this.settings.get(id);
+        synchronized (this.cache) {
+            MyPlayer s = this.cache.get(id);
             if (s != null) return s;
-            s = new PlayerSetting();
-            this.settings.put(id, s);
+            s = new MyPlayer();
+            this.cache.put(id, s);
             return s;
         }
     }
 
     @EventHandler
     void onQuit(@NotNull PlayerQuitEvent event) {
-        synchronized (this.settings) {
-            this.settings.remove(event.getPlayer().getUniqueId());
+        synchronized (this.cache) {
+            this.cache.remove(event.getPlayer().getUniqueId());
         }
     }
 }
