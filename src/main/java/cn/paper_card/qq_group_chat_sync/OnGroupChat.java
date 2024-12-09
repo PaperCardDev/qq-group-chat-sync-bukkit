@@ -7,16 +7,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.TitlePart;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.UUID;
 
 class OnGroupChat implements EventListener {
 
@@ -32,247 +28,151 @@ class OnGroupChat implements EventListener {
         if (!"main-group.chat".equals(event.getType())) return;
 
         final JsonElement data = event.getData();
+
         if (data == null) return;
 
-        // getSLF4JLogger().info("主群消息: " + data);
-
-        final JsonObject obj = data.getAsJsonObject();
-
-        final JsonObject senderObj = obj.get("sender").getAsJsonObject();
-
-        final JsonArray messageArray = obj.get("message").getAsJsonArray();
-
-        final long senderQq = obj.get("user_id").getAsLong();
-
-        // 查询消息发送者
-        OfflinePlayer senderPlayerOffline;
-        Player senderPlayer = null;
+        final JsonObject dataObj;
 
         try {
-            final String uuidStr = senderObj.get("mc_uuid").getAsString();
-            final UUID uuid = UUID.fromString(uuidStr);
-            senderPlayerOffline = this.plugin.getServer().getOfflinePlayer(uuid);
-            senderPlayer = senderPlayerOffline.getPlayer();
-        } catch (Exception ignored) {
-            senderPlayerOffline = null;
+            dataObj = data.getAsJsonObject();
+        } catch (Exception e) {
+            this.plugin.getSLF4JLogger().error("data obj: ", e);
+            return;
+        }
+
+        // 解析消息发送者
+        final SenderParser senderParser;
+        try {
+            senderParser = new SenderParser(dataObj, this.plugin.getServer());
+        } catch (Exception e) {
+            this.plugin.getSLF4JLogger().error("parse message sender: ", e);
+            return;
         }
 
         // 解析消息
-        for (Player onlinePlayer : this.plugin.getServer().getOnlinePlayers()) {
+        final MessageParser messageParser;
 
-            final MyPlayer myPlayer = this.plugin.getMyPlayerService().getMyPlayer(onlinePlayer);
+        try {
+            messageParser = new MessageParser(dataObj);
+        } catch (Exception e) {
+            this.plugin.getSLF4JLogger().error("parse message: ", e);
+            return;
+        }
 
+        final Component senderComponent = senderParser.component();
+        final Component messageComponent;
+
+        {
             final TextComponent.Builder text = Component.text();
 
             text.append(Component.text("[QQ群] ").color(NamedTextColor.GRAY));
+            text.append(senderComponent);
+            text.append(Component.space());
+            text.append(messageParser.toComponent());
 
-            String displayName;
+            messageComponent = text.build().color(
+                    senderParser.getOnlinePlayer() == null ?
+                            NamedTextColor.WHITE : NamedTextColor.GRAY
+            );
+        }
 
-            try {
-                displayName = senderObj.get("card").getAsString();
-                if ("".equals(displayName)) {
-                    displayName = senderObj.get("nickname").getAsString();
-                }
-            } catch (Exception ignored) {
-                displayName = "%d".formatted(senderQq);
-            }
+        // 播报到控制台
+        this.plugin.getServer().getConsoleSender().sendMessage(messageComponent);
 
-            final Component displayCom;
-            if (senderPlayer != null) {
-                displayCom = senderPlayer.displayName();
-            } else if (senderPlayerOffline != null) {
-                final String name = senderPlayerOffline.getName();
-                if (name != null) {
-                    displayCom = Component.text(name).color(NamedTextColor.GRAY);
-                } else {
-                    displayCom = Component.text(displayName).color(NamedTextColor.GRAY);
-                }
-            } else {
-                displayCom = Component.text(displayName).color(NamedTextColor.GRAY);
-            }
 
-            text.append(Component.text("<").color(NamedTextColor.WHITE));
-            text.append(displayCom);
-            text.append(Component.text("> ").color(NamedTextColor.WHITE));
+        // 发送给每一个玩家
+        for (Player onlinePlayer : this.plugin.getServer().getOnlinePlayers()) {
 
             boolean isMeSent = false;
-            boolean isAtMe = false;
             boolean isReplyMe = false;
-            boolean isAtAll = false;
+
+            final MyPlayer myPlayer = this.plugin.getMyPlayerService().getMyPlayer(onlinePlayer);
 
             // 自己发送的消息
-            if (senderPlayerOffline != null &&
-                    senderPlayerOffline.getUniqueId().equals(onlinePlayer.getUniqueId())) {
+            final OfflinePlayer senderOffline = senderParser.getOfflinePlayer();
+
+            if (senderOffline != null && senderOffline.getUniqueId().equals(onlinePlayer.getUniqueId())) {
                 isMeSent = true;
             }
 
-            for (JsonElement jsonElement : messageArray) {
-                final JsonObject o = jsonElement.getAsJsonObject();
+            // 判断是否at该玩家
+            final boolean isAtMe = messageParser.hasAtPlayer(onlinePlayer.getUniqueId());
 
-                final String type = o.get("type").getAsString();
-                final JsonObject msgData = o.get("data").getAsJsonObject();
+            // 判断是否回复at该玩家
 
+            // 判断是否at全体
+            final boolean isAtAll = messageParser.hasAtAll();
 
-                // 纯文本
-                if ("text".equals(type)) {
+//            for (JsonElement jsonElement : messageArray) {
+//                final JsonObject o = jsonElement.getAsJsonObject();
+//
+//                final String type = o.get("type").getAsString();
+//                final JsonObject msgData = o.get("data").getAsJsonObject();
+//
+//
+//                if ("reply".equals(type)) {
+//                    // 获取回复的QQ和昵称
+//                    String replyTarget;
+//                    try {
+//                        final JsonObject json = msgData.get("json").getAsJsonObject();
+//                        final JsonObject sender = json.get("sender").getAsJsonObject();
+//                        final String card = sender.get("card").getAsString();
+//                        final String nickname = sender.get("nickname").getAsString();
+//                        replyTarget = card;
+//                        if ("".equals(replyTarget)) {
+//                            replyTarget = nickname;
+//                        }
+//
+//                        // 判断是不是回复自己
+//                        final String mcUuid = sender.get("mc_uuid").getAsString();
+//                        final UUID uuid = UUID.fromString(mcUuid);
+//
+//                        if (uuid.equals(onlinePlayer.getUniqueId())) {
+//                            isReplyMe = true;
+//                        }
+//
+//                    } catch (Exception ignored) {
+//                        replyTarget = null;
+//                    }
+//
+//                    final TextComponent.Builder a = Component.text();
+//                    a.append(Component.text("[回复"));
+//                    if (replyTarget != null) {
+//                        a.append(Component.text(" => "));
+//                        a.append(Component.text(replyTarget));
+//                    }
+//                    a.append(Component.text("]"));
+//
+//                    // todo: 支持悬浮预览
+//                }
+//            }
 
-                    text.append(Component.text(msgData.get("text").getAsString()));
-
-                } else if ("image".equals(type)) { // 图片
-
-                    final int subType = o.get("subType").getAsInt();
-
-                    final String tag = subType == 0 ? "[图片]" : "[动画表情]";
-
-                    final String url = msgData.get("url").getAsString();
-
-                    text.append(Component.text(tag).decorate(TextDecoration.UNDERLINED)
-                            .color(NamedTextColor.DARK_AQUA)
-                            .hoverEvent(HoverEvent.showText(Component.text("点击查看")))
-                            .clickEvent(ClickEvent.openUrl(url)));
-
-                } else if ("mface".equals(type)) {
-
-                    final String summary = msgData.get("summary").getAsString();
-
-                    final String url = msgData.get("url").getAsString();
-
-                    String tag = summary;
-                    if (!tag.startsWith("[")) {
-                        tag = "[" + summary;
-                    }
-                    if (!tag.endsWith("]")) {
-                        tag = summary + "]";
-                    }
-
-                    // 表情包
-                    text.append(Component.text(tag).color(NamedTextColor.DARK_AQUA)
-                            .decorate(TextDecoration.UNDERLINED)
-                            .hoverEvent(HoverEvent.showText(Component.text("点击查看")))
-                            .clickEvent(ClickEvent.openUrl(url))
-
-                    );
-
-                } else if ("face".equals(type)) {
-
-                    final String id = msgData.get("id").getAsString();
-
-                    String name = "表情";
-
-                    try {
-                        name = msgData.get("name").getAsString();
-                    } catch (Exception ignored) {
-                    }
-
-                    text.append(Component.text("[%s]".formatted(name)).color(NamedTextColor.DARK_AQUA)
-                            .hoverEvent(HoverEvent.showText(Component.text("id: %s".formatted(id))))
-                    );
-
-                } else if ("reply".equals(type)) {
-
-//                            final String id = msgData.get("id").getAsString();
-
-                    // 获取回复的QQ和昵称
-                    String replyTarget;
-                    try {
-                        final JsonObject json = msgData.get("json").getAsJsonObject();
-                        final JsonObject sender = json.get("sender").getAsJsonObject();
-                        final String card = sender.get("card").getAsString();
-                        final String nickname = sender.get("nickname").getAsString();
-                        replyTarget = card;
-                        if ("".equals(replyTarget)) {
-                            replyTarget = nickname;
-                        }
-
-                        // 判断是不是回复自己
-                        final String mcUuid = sender.get("mc_uuid").getAsString();
-                        final UUID uuid = UUID.fromString(mcUuid);
-
-                        if (uuid.equals(onlinePlayer.getUniqueId())) {
-                            isReplyMe = true;
-                        }
-
-                    } catch (Exception ignored) {
-                        replyTarget = null;
-                    }
-
-                    final TextComponent.Builder a = Component.text();
-                    a.append(Component.text("[回复"));
-                    if (replyTarget != null) {
-                        a.append(Component.text(" => "));
-                        a.append(Component.text(replyTarget));
-                    }
-                    a.append(Component.text("]"));
-
-                    // todo: 支持悬浮预览
-
-                    text.append(a.build().color(NamedTextColor.GRAY));
-
-                } else if ("at".equals(type)) {
-
-                    final String qqStr = msgData.get("qq").getAsString();
-
-                    String display;
-
-                    // AT全体
-                    if ("all".equalsIgnoreCase(qqStr)) {
-                        isAtAll = true;
-                        display = "全体成员";
-                    } else {
-                        try {
-                            display = msgData.get("display").getAsString();
-                        } catch (Exception ignore) {
-                            display = qqStr;
-                        }
-                    }
-
-                    // 判断是不是at自己
-                    try {
-                        final String mcUUid = msgData.get("mc_uuid").getAsString();
-                        final UUID uuid = UUID.fromString(mcUUid);
-                        if (uuid.equals(onlinePlayer.getUniqueId())) {
-                            isAtMe = true;
-                        }
-                    } catch (Exception ignored) {
-                    }
-
-
-                    text.append(Component.text("@%s".formatted(display))
-                            .color(isAtMe ? NamedTextColor.RED : NamedTextColor.GOLD)
-                            .decorate(TextDecoration.BOLD)
-                            .clickEvent(ClickEvent.copyToClipboard(qqStr))
-                            .hoverEvent(HoverEvent.showText(Component.text("QQ:%s".formatted(qqStr))))
-                    );
-
-
-                } else {
-                    text.append(Component.text("[暂不支持的消息:%s]".formatted(type))
-                            .color(NamedTextColor.GRAY)
-                            .hoverEvent(HoverEvent.showText(Component.text(o.toString())))
-                    );
-                }
-
-                text.appendSpace();
+            if (myPlayer.isReceiveGroupMsg() || isMeSent || isAtMe || isReplyMe || isAtAll) {
+                onlinePlayer.sendMessage(messageComponent);
             }
 
-            final String finalDisplayName = displayName;
-
             if (isAtMe) {
+                // 额外处理，艾特玩家
+
                 this.plugin.getTaskScheduler().runTaskLater(() -> {
 
                     onlinePlayer.sendTitlePart(TitlePart.TITLE,
                             Component.text("有人在群里@你").color(NamedTextColor.GOLD)
                     );
 
-                    onlinePlayer.sendTitlePart(TitlePart.SUBTITLE,
-                            Component.text()
-                                    .append(Component.text(finalDisplayName).color(NamedTextColor.DARK_AQUA))
-                                    .append(Component.text(" 可能找你有事"))
-                                    .build().color(NamedTextColor.GREEN)
-                    );
+                    final Component msg = Component.text()
+                            .append(Component.text(senderParser.displayName()).color(NamedTextColor.DARK_AQUA))
+                            .append(Component.text(" 可能找你有事"))
+                            .build().color(NamedTextColor.GREEN);
+
+                    onlinePlayer.sendTitlePart(TitlePart.SUBTITLE, msg);
 
                 }, 1);
+
+
             } else if (isReplyMe) {
+                // 额外处理，回复消息
+
                 this.plugin.getTaskScheduler().runTaskLater(() -> {
 
                     onlinePlayer.sendTitlePart(TitlePart.TITLE, Component.text()
@@ -280,7 +180,7 @@ class OnGroupChat implements EventListener {
                             .build());
 
                     onlinePlayer.sendTitlePart(TitlePart.SUBTITLE, Component.text()
-                            .append(Component.text(finalDisplayName).color(NamedTextColor.DARK_AQUA))
+                            .append(Component.text(senderParser.displayName()).color(NamedTextColor.DARK_AQUA))
                             .append(Component.text(" 在主群回复了你的消息"))
                             .build().color(NamedTextColor.GREEN));
 
@@ -288,30 +188,20 @@ class OnGroupChat implements EventListener {
             }
 
             if (isAtAll) {
+                // 额外处理：艾特全体
                 this.plugin.getTaskScheduler().runTaskLater(() -> {
 
-                    onlinePlayer.sendTitlePart(TitlePart.TITLE, Component.text()
-                            .append(Component.text("@全体成员").color(NamedTextColor.RED))
-                            .build());
+                    onlinePlayer.sendTitlePart(TitlePart.TITLE, Component.text("@全体成员")
+                            .color(NamedTextColor.GOLD)
+                            .decorate(TextDecoration.BOLD)
+                    );
 
                     onlinePlayer.sendTitlePart(TitlePart.SUBTITLE, Component.text()
-                            .append(Component.text(finalDisplayName).color(NamedTextColor.DARK_AQUA))
+                            .append(Component.text(senderParser.displayName()).color(NamedTextColor.DARK_AQUA))
                             .append(Component.text(" 在主群@全体"))
                             .build().color(NamedTextColor.GREEN));
 
                 }, 1);
-            }
-
-            if (myPlayer.isReceiveGroupMsg() || isMeSent || isAtMe || isReplyMe) {
-
-                final NamedTextColor color;
-                if (senderPlayer != null) {
-                    color = NamedTextColor.WHITE;
-                } else {
-                    color = NamedTextColor.GRAY;
-                }
-
-                onlinePlayer.sendMessage(text.build().color(color));
             }
         }
     }
