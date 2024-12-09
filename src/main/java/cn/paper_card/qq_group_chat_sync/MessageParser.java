@@ -41,7 +41,7 @@ class ImageMessage implements MessageElement {
 
     private final boolean isMarketFace;
 
-    ImageMessage(final @NotNull JsonObject data) {
+    ImageMessage(@NotNull JsonObject data) {
         this.url = data.get("url").getAsString();
         this.summary = data.get("summary").getAsString();
 
@@ -196,8 +196,12 @@ class MessageParser {
             switch (type) {
                 case "text":
                     this.messageElements.add(new TextMessage(msgData));
+                    break;
+                    
                 case "image":
                     this.messageElements.add(new ImageMessage(msgData));
+                    break;
+
                 case "at":
                     final AtMessage atMessage = new AtMessage(msgData);
                     this.messageElements.add(atMessage);
@@ -208,12 +212,16 @@ class MessageParser {
                     if (atMessage.isAtAll()) {
                         this.hasAtAll = true;
                     }
+                    break;
 
                 case "face":
                     final FaceMessage fm = new FaceMessage(msgData);
                     this.messageElements.add(fm);
+                    break;
+
                 default:
                     this.messageElements.add(new UnsupportedMessage(type, msgData));
+                    break;
             }
         }
     }
