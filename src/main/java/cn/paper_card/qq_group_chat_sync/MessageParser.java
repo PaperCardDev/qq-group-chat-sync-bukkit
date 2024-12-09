@@ -9,6 +9,8 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.Server;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -154,10 +156,11 @@ class FaceMessage implements MessageElement {
 class ReplyMessage implements MessageElement {
 
     private final @Nullable MessageParser originMsg;
+    private final @Nullable SenderParser senderParser;
 
     private final @NotNull String id;
 
-    ReplyMessage(@NotNull JsonObject data) {
+    ReplyMessage(@NotNull JsonObject data, @NotNull Server server) {
 
         this.id = data.get("id").getAsString();
 
@@ -165,10 +168,17 @@ class ReplyMessage implements MessageElement {
         if (jsonEle != null && jsonEle.isJsonObject()) {
             final JsonObject jsonObj = jsonEle.getAsJsonObject();
             // 解析消息
-            this.originMsg = new MessageParser(jsonObj);
+            this.originMsg = new MessageParser(jsonObj, server);
+            this.senderParser = new SenderParser(jsonObj, server);
         } else {
             this.originMsg = null;
+            this.senderParser = null;
         }
+    }
+
+    @Nullable OfflinePlayer getReplyPlayer() {
+        if (this.senderParser == null) return null;
+        return this.senderParser.getOfflinePlayer();
     }
 
     @Override
@@ -211,10 +221,11 @@ class MessageParser {
     private final @NotNull LinkedList<MessageElement> messageElements = new LinkedList<>();
 
     private final @NotNull LinkedList<UUID> atPlayers = new LinkedList<>();
+    private final @NotNull LinkedList<UUID> replyPlayers = new LinkedList<>();
 
     private boolean hasAtAll = false;
 
-    MessageParser(@NotNull JsonObject dataObj) {
+    MessageParser(@NotNull JsonObject dataObj, @NotNull Server server) {
         final JsonArray array = dataObj.get("message").getAsJsonArray();
 
         for (JsonElement jsonElement : array) {
@@ -250,7 +261,11 @@ class MessageParser {
                     break;
 
                 case "reply":
-                    final ReplyMessage rm = new ReplyMessage(msgData);
+                    final ReplyMessage rm = new ReplyMessage(msgData, server);
+                    final OfflinePlayer rp = rm.getReplyPlayer();
+                    if (rp != null) {
+                        this.replyPlayers.add(rp.getUniqueId());
+                    }
                     this.messageElements.add(rm);
                     break;
 
@@ -269,8 +284,8 @@ class MessageParser {
         return this.atPlayers.contains(uuid);
     }
 
-    @NotNull LinkedList<MessageElement> getMessageElements() {
-        return this.messageElements;
+    boolean hasReplyPlayer(@NotNull UUID uuid) {
+        return this.replyPlayers.contains(uuid);
     }
 
     @NotNull TextComponent toComponent() {

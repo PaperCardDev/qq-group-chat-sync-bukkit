@@ -2,7 +2,6 @@ package cn.paper_card.qq_group_chat_sync;
 
 import cn.paper_card.client.api.EventListener;
 import cn.paper_card.client.api.PaperEvent;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.kyori.adventure.text.Component;
@@ -53,15 +52,16 @@ class OnGroupChat implements EventListener {
         final MessageParser messageParser;
 
         try {
-            messageParser = new MessageParser(dataObj);
+            messageParser = new MessageParser(dataObj, this.plugin.getServer());
         } catch (Exception e) {
             this.plugin.getSLF4JLogger().error("parse message: ", e);
             return;
         }
 
         final Component senderComponent = senderParser.component();
-        final Component messageComponent;
 
+        // 发送给玩家的消息
+        final Component messageComponent;
         {
             final TextComponent.Builder text = Component.text();
 
@@ -77,75 +77,39 @@ class OnGroupChat implements EventListener {
         }
 
         // 播报到控制台
-        this.plugin.getServer().getConsoleSender().sendMessage(messageComponent);
-
+        {
+            final TextComponent.Builder text = Component.text();
+            text.append(Component.text("[QQ群] ").color(NamedTextColor.GOLD));
+            text.append(senderComponent);
+            text.append(Component.space());
+            text.append(messageParser.toComponent());
+            this.plugin.getServer().getConsoleSender().sendMessage(text.build().color(NamedTextColor.GREEN));
+        }
 
         // 发送给每一个玩家
         for (Player onlinePlayer : this.plugin.getServer().getOnlinePlayers()) {
 
-            boolean isMeSent = false;
-            boolean isReplyMe = false;
-
             final MyPlayer myPlayer = this.plugin.getMyPlayerService().getMyPlayer(onlinePlayer);
 
-            // 自己发送的消息
-            final OfflinePlayer senderOffline = senderParser.getOfflinePlayer();
+            // 判断自己发送的消息
+            boolean isMeSent = false;
+            {
+                final OfflinePlayer senderOffline = senderParser.getOfflinePlayer();
 
-            if (senderOffline != null && senderOffline.getUniqueId().equals(onlinePlayer.getUniqueId())) {
-                isMeSent = true;
+                if (senderOffline != null && senderOffline.getUniqueId().equals(onlinePlayer.getUniqueId())) {
+                    isMeSent = true;
+                }
             }
 
             // 判断是否at该玩家
             final boolean isAtMe = messageParser.hasAtPlayer(onlinePlayer.getUniqueId());
 
             // 判断是否回复at该玩家
+            final boolean isReplyMe = messageParser.hasReplyPlayer(onlinePlayer.getUniqueId());
 
             // 判断是否at全体
             final boolean isAtAll = messageParser.hasAtAll();
 
-//            for (JsonElement jsonElement : messageArray) {
-//                final JsonObject o = jsonElement.getAsJsonObject();
-//
-//                final String type = o.get("type").getAsString();
-//                final JsonObject msgData = o.get("data").getAsJsonObject();
-//
-//
-//                if ("reply".equals(type)) {
-//                    // 获取回复的QQ和昵称
-//                    String replyTarget;
-//                    try {
-//                        final JsonObject json = msgData.get("json").getAsJsonObject();
-//                        final JsonObject sender = json.get("sender").getAsJsonObject();
-//                        final String card = sender.get("card").getAsString();
-//                        final String nickname = sender.get("nickname").getAsString();
-//                        replyTarget = card;
-//                        if ("".equals(replyTarget)) {
-//                            replyTarget = nickname;
-//                        }
-//
-//                        // 判断是不是回复自己
-//                        final String mcUuid = sender.get("mc_uuid").getAsString();
-//                        final UUID uuid = UUID.fromString(mcUuid);
-//
-//                        if (uuid.equals(onlinePlayer.getUniqueId())) {
-//                            isReplyMe = true;
-//                        }
-//
-//                    } catch (Exception ignored) {
-//                        replyTarget = null;
-//                    }
-//
-//                    final TextComponent.Builder a = Component.text();
-//                    a.append(Component.text("[回复"));
-//                    if (replyTarget != null) {
-//                        a.append(Component.text(" => "));
-//                        a.append(Component.text(replyTarget));
-//                    }
-//                    a.append(Component.text("]"));
-//
-//                    // todo: 支持悬浮预览
-//                }
-//            }
 
             if (myPlayer.isReceiveGroupMsg() || isMeSent || isAtMe || isReplyMe || isAtAll) {
                 onlinePlayer.sendMessage(messageComponent);
