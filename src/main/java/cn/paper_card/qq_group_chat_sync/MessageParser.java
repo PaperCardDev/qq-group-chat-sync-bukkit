@@ -151,6 +151,36 @@ class FaceMessage implements MessageElement {
     }
 }
 
+class ReplyMessage implements MessageElement {
+
+    private final @Nullable MessageParser originMsg;
+
+    private final @NotNull String id;
+
+    ReplyMessage(@NotNull JsonObject data) {
+
+        this.id = data.get("id").getAsString();
+
+        final JsonElement jsonEle = data.get("json");
+        if (jsonEle != null && jsonEle.isJsonObject()) {
+            final JsonObject jsonObj = jsonEle.getAsJsonObject();
+            // 解析消息
+            this.originMsg = new MessageParser(jsonObj);
+        } else {
+            this.originMsg = null;
+        }
+    }
+
+    @Override
+    public @NotNull Component toComponent() {
+        return Component.text("[回复]")
+                .color(NamedTextColor.GRAY)
+                .hoverEvent(this.originMsg == null ?
+                        HoverEvent.showText(Component.text("消息ID: " + this.id)) :
+                        HoverEvent.showText(this.originMsg.toComponent()));
+    }
+}
+
 class UnsupportedMessage implements MessageElement {
 
     private final @NotNull String type;
@@ -197,7 +227,7 @@ class MessageParser {
                 case "text":
                     this.messageElements.add(new TextMessage(msgData));
                     break;
-                    
+
                 case "image":
                     this.messageElements.add(new ImageMessage(msgData));
                     break;
@@ -217,6 +247,11 @@ class MessageParser {
                 case "face":
                     final FaceMessage fm = new FaceMessage(msgData);
                     this.messageElements.add(fm);
+                    break;
+
+                case "reply":
+                    final ReplyMessage rm = new ReplyMessage(msgData);
+                    this.messageElements.add(rm);
                     break;
 
                 default:
