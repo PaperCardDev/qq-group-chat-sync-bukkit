@@ -66,14 +66,14 @@ class OnGroupChat implements EventListener {
             final TextComponent.Builder text = Component.text();
 
             text.append(Component.text("[QQ群] ").color(NamedTextColor.GRAY));
-            text.append(senderComponent);
-            text.append(Component.space());
-            text.append(messageParser.toComponent());
 
-            messageComponent = text.build().color(
-                    senderParser.getOnlinePlayer() == null ?
-                            NamedTextColor.WHITE : NamedTextColor.GRAY
-            );
+            text.append(senderComponent);
+
+            text.append(Component.space());
+            text.append(messageParser.toComponent().color(
+                    senderParser.getOnlinePlayer() != null ? NamedTextColor.WHITE : NamedTextColor.GRAY));
+
+            messageComponent = text.build().color(NamedTextColor.WHITE);
         }
 
         // 播报到控制台
@@ -82,8 +82,8 @@ class OnGroupChat implements EventListener {
             text.append(Component.text("[QQ群] ").color(NamedTextColor.GOLD));
             text.append(senderComponent);
             text.append(Component.space());
-            text.append(messageParser.toComponent());
-            this.plugin.getServer().getConsoleSender().sendMessage(text.build().color(NamedTextColor.GREEN));
+            text.append(messageParser.toComponent().color(NamedTextColor.GREEN));
+            this.plugin.getServer().getConsoleSender().sendMessage(text.build().color(NamedTextColor.WHITE));
         }
 
         // 发送给每一个玩家
@@ -109,7 +109,6 @@ class OnGroupChat implements EventListener {
 
             // 判断是否at全体
             final boolean isAtAll = messageParser.hasAtAll();
-
 
             if (myPlayer.isReceiveGroupMsg() || isMeSent || isAtMe || isReplyMe || isAtAll) {
                 onlinePlayer.sendMessage(messageComponent);

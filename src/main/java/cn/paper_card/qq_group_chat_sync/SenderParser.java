@@ -62,7 +62,7 @@ class SenderParser {
     @NotNull Component displayComponent() {
 
         if (this.onlinePlayer != null) {
-            return this.onlinePlayer.displayName();
+            return Component.text().append(this.onlinePlayer.displayName()).color(NamedTextColor.WHITE).build();
         }
 
         // 不在线

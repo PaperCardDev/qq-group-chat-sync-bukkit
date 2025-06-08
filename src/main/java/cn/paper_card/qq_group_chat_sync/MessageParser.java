@@ -14,6 +14,7 @@ import org.bukkit.Server;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.UUID;
 
@@ -28,6 +29,10 @@ class TextMessage implements MessageElement {
 
     TextMessage(final @NotNull JsonObject data) {
         this.text = data.get("text").getAsString();
+    }
+
+    public @NotNull String getText() {
+        return this.text;
     }
 
     @Override
@@ -218,7 +223,7 @@ class UnsupportedMessage implements MessageElement {
 
 class MessageParser {
 
-    private final @NotNull LinkedList<MessageElement> messageElements = new LinkedList<>();
+    private final @NotNull MessageElement[] messageElements;
 
     private final @NotNull LinkedList<UUID> atPlayers = new LinkedList<>();
     private final @NotNull LinkedList<UUID> replyPlayers = new LinkedList<>();
@@ -228,6 +233,8 @@ class MessageParser {
     MessageParser(@NotNull JsonObject dataObj, @NotNull Server server) {
         final JsonArray array = dataObj.get("message").getAsJsonArray();
 
+        final ArrayList<MessageElement> tmpEles = new ArrayList<>();
+
         for (JsonElement jsonElement : array) {
             final JsonObject msgObj = jsonElement.getAsJsonObject();
 
@@ -236,16 +243,16 @@ class MessageParser {
 
             switch (type) {
                 case "text":
-                    this.messageElements.add(new TextMessage(msgData));
+                    tmpEles.add(new TextMessage(msgData));
                     break;
 
                 case "image":
-                    this.messageElements.add(new ImageMessage(msgData));
+                    tmpEles.add(new ImageMessage(msgData));
                     break;
 
                 case "at":
                     final AtMessage atMessage = new AtMessage(msgData);
-                    this.messageElements.add(atMessage);
+                    tmpEles.add(atMessage);
                     final UUID mcUuid = atMessage.getMcUuid();
                     if (mcUuid != null) {
                         this.atPlayers.add(mcUuid);
@@ -257,7 +264,7 @@ class MessageParser {
 
                 case "face":
                     final FaceMessage fm = new FaceMessage(msgData);
-                    this.messageElements.add(fm);
+                    tmpEles.add(fm);
                     break;
 
                 case "reply":
@@ -266,14 +273,16 @@ class MessageParser {
                     if (rp != null) {
                         this.replyPlayers.add(rp.getUniqueId());
                     }
-                    this.messageElements.add(rm);
+                    tmpEles.add(rm);
                     break;
 
                 default:
-                    this.messageElements.add(new UnsupportedMessage(type, msgData));
+                    tmpEles.add(new UnsupportedMessage(type, msgData));
                     break;
             }
         }
+
+        this.messageElements = tmpEles.toArray(new MessageElement[0]);
     }
 
     boolean hasAtAll() {
@@ -290,15 +299,28 @@ class MessageParser {
 
     @NotNull TextComponent toComponent() {
         final TextComponent.Builder text = Component.text();
-        boolean first = true;
-        for (MessageElement messageElement : this.messageElements) {
-            if (first) {
-                first = false;
+
+        for (int i = 0; i < this.messageElements.length; ++i) {
+            final MessageElement ele = this.messageElements[i];
+
+            final boolean needSpace;
+            if (i > 0) {
+                if (ele instanceof TextMessage txtEle) {
+                    needSpace = !txtEle.getText().startsWith(" ");
+                } else {
+                    needSpace = true;
+                }
             } else {
+                needSpace = false;
+            }
+
+            if (needSpace) {
                 text.appendSpace();
             }
-            text.append(messageElement.toComponent());
+
+            text.append(ele.toComponent());
         }
+
         return text.build();
     }
 }
